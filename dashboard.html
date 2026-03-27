@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GRAVITY Trading Lab — Unified Dashboard</title>
+    <meta name="description" content="Multi-asset algorithmic trading strategy dashboard with backtesting results for ETH and BTC on 4H timeframe.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0b0f;
+            --bg-secondary: #12141c;
+            --bg-card: #181b27;
+            --bg-card-hover: #1e2230;
+            --border: #2a2e3d;
+            --border-subtle: #1e2230;
+            --text-primary: #e8eaf0;
+            --text-secondary: #8b90a5;
+            --text-muted: #5a5f76;
+            --accent-blue: #4f8bff;
+            --accent-purple: #8b5cf6;
+            --accent-cyan: #06d6a0;
+            --accent-orange: #ff9f43;
+            --accent-pink: #f472b6;
+            --green: #10b981;
+            --red: #ef4444;
+            --gold: #fbbf24;
+            --gradient-1: linear-gradient(135deg, #4f8bff 0%, #8b5cf6 100%);
+            --shadow-glow: 0 0 30px rgba(79,139,255,0.15);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-brand { display: flex; align-items: center; gap: 12px; }
+        .header-logo {
+            width: 36px; height: 36px;
+            background: var(--gradient-1);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: 800; color: white;
+        }
+        .header-title {
+            font-size: 18px; font-weight: 700;
+            background: var(--gradient-1);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .header-subtitle { font-size: 12px; color: var(--text-muted); }
+        .header-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px; color: var(--text-muted);
+            padding: 6px 12px; background: var(--bg-primary);
+            border-radius: 8px; border: 1px solid var(--border-subtle);
+        }
+        .asset-tabs {
+            display: flex; padding: 0 32px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+        .asset-tab {
+            padding: 14px 28px; cursor: pointer;
+            font-size: 14px; font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            display: flex; align-items: center; gap: 8px;
+            user-select: none;
+        }
+        .asset-tab:hover { color: var(--text-secondary); background: rgba(79,139,255,0.05); }
+        .asset-tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); background: rgba(79,139,255,0.08); }
+        .asset-tab .badge {
+            font-size: 10px; padding: 2px 6px; border-radius: 4px;
+            background: var(--bg-card); color: var(--text-muted); font-weight: 500;
+        }
+        .asset-tab.active .badge { background: rgba(79,139,255,0.2); color: var(--accent-blue); }
+        .strategy-tabs { display: flex; gap: 4px; padding: 16px 32px; flex-wrap: wrap; }
+        .strategy-tab {
+            padding: 8px 18px; cursor: pointer;
+            font-size: 13px; font-weight: 500;
+            color: var(--text-secondary);
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px; transition: all 0.3s ease;
+            user-select: none;
+        }
+        .strategy-tab:hover { background: var(--bg-card-hover); border-color: var(--border); }
+        .strategy-tab.active { background: rgba(79,139,255,0.15); border-color: var(--accent-blue); color: var(--accent-blue); }
+        .main-content { padding: 0 32px 40px; }
+        .phase-selector { display: flex; gap: 12px; margin-bottom: 20px; }
+        .phase-btn {
+            padding: 10px 24px; cursor: pointer;
+            font-size: 13px; font-weight: 600;
+            border: 1px solid var(--border); border-radius: 10px;
+            background: var(--bg-card); color: var(--text-secondary);
+            transition: all 0.3s ease; user-select: none;
+        }
+        .phase-btn:hover { background: var(--bg-card-hover); }
+        .phase-btn.active-a { background: rgba(16,185,129,0.12); border-color: var(--green); color: var(--green); }
+        .phase-btn.active-b { background: rgba(139,92,246,0.12); border-color: var(--accent-purple); color: var(--accent-purple); }
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+            gap: 12px; margin-bottom: 24px;
+        }
+        .metric-card {
+            background: var(--bg-card); border: 1px solid var(--border-subtle);
+            border-radius: 12px; padding: 16px;
+            transition: all 0.3s ease;
+        }
+        .metric-card:hover { border-color: var(--border); transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+        .metric-label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .metric-value { font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 700; }
+        .metric-value.positive { color: var(--green); }
+        .metric-value.negative { color: var(--red); }
+        .metric-value.neutral { color: var(--accent-blue); }
+        .metric-value.gold { color: var(--gold); }
+        .metric-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+        @media (max-width: 1200px) { .charts-grid { grid-template-columns: 1fr; } }
+        .chart-card {
+            background: var(--bg-card); border: 1px solid var(--border-subtle);
+            border-radius: 14px; padding: 20px; transition: border-color 0.3s ease;
+        }
+        .chart-card:hover { border-color: var(--border); }
+        .chart-card.full-width { grid-column: 1 / -1; }
+        .chart-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .chart-title .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .chart-title .dot.green { background: var(--green); }
+        .chart-title .dot.blue { background: var(--accent-blue); }
+        .chart-title .dot.purple { background: var(--accent-purple); }
+        .chart-canvas-wrap { position: relative; height: 260px; }
+        .trades-table-wrap {
+            background: var(--bg-card); border: 1px solid var(--border-subtle);
+            border-radius: 14px; overflow: hidden; margin-top: 24px;
+        }
+        .trades-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .trades-table th {
+            padding: 12px 16px; text-align: left; font-weight: 600; font-size: 11px;
+            text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);
+            background: var(--bg-secondary); border-bottom: 1px solid var(--border); position: sticky; top: 0;
+        }
+        .trades-table td {
+            padding: 10px 16px; border-bottom: 1px solid var(--border-subtle);
+            font-family: 'JetBrains Mono', monospace; font-size: 12px;
+        }
+        .trades-table tr:hover td { background: rgba(79,139,255,0.04); }
+        .trades-table .win { color: var(--green); }
+        .trades-table .loss { color: var(--red); }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .tag.long { background: rgba(16,185,129,0.15); color: var(--green); }
+        .tag.short { background: rgba(239,68,68,0.15); color: var(--red); }
+        .table-scroll { max-height: 400px; overflow-y: auto; }
+        .table-scroll::-webkit-scrollbar { width: 6px; }
+        .table-scroll::-webkit-scrollbar-track { background: var(--bg-card); }
+        .table-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        .comparison-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+        .comparison-card {
+            background: var(--bg-card); border: 1px solid var(--border-subtle);
+            border-radius: 12px; padding: 18px; transition: all 0.3s ease; cursor: pointer;
+        }
+        .comparison-card:hover { border-color: var(--border); transform: translateY(-2px); }
+        .strat-name { font-size: 13px; font-weight: 600; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .phase-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; }
+        .phase-label { color: var(--text-muted); font-weight: 500; }
+        .phase-val { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+        .status-badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+        .status-badge.pass { background: rgba(16,185,129,0.15); color: var(--green); }
+        .status-badge.partial { background: rgba(251,191,36,0.15); color: var(--gold); }
+        .status-badge.fail { background: rgba(239,68,68,0.15); color: var(--red); }
+        .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px; gap: 16px; }
+        .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    </style>
+</head>
+<body>
+<header class="header">
+    <div class="header-brand">
+        <div class="header-logo">G</div>
+        <div>
+            <div class="header-title">GRAVITY Trading Lab</div>
+            <div class="header-subtitle">Multi-Asset Strategy Dashboard</div>
+        </div>
+    </div>
+    <div class="header-time" id="header-time">Loading...</div>
+</header>
+<nav class="asset-tabs" id="asset-tabs"></nav>
+<div class="strategy-tabs" id="strategy-tabs"></div>
+<main class="main-content" id="main-content">
+    <div class="loading"><div class="spinner"></div><div style="color:var(--text-muted)">Loading data...</div></div>
+</main>
+
+<!-- Inline data loaded from external JS file -->
+<script src="dashboard_data_inline.js"></script>
+<script>
+let DATA = null;
+let STATE = { assetIdx: 0, stratIdx: -1, phase: 'a' };
+let CHARTS = {};
+
+function loadData() {
+    try {
+        DATA = INLINE_DATA;
+        document.getElementById('header-time').textContent = 'Generated: ' + new Date(DATA.generated_at).toLocaleString();
+        buildUI();
+    } catch(e) {
+        document.getElementById('main-content').innerHTML =
+            '<div class="loading"><div style="color:var(--red);font-size:16px">Error: ' + e.message + '</div></div>';
+    }
+}
+
+function buildUI() {
+    const tabsEl = document.getElementById('asset-tabs');
+    tabsEl.innerHTML = '';
+    const icons = {'ETH/USD': '⟠', 'BTC/USD': '₿'};
+    DATA.assets.forEach((a, i) => {
+        const tab = document.createElement('div');
+        tab.className = 'asset-tab' + (i === STATE.assetIdx ? ' active' : '');
+        tab.innerHTML = (icons[a.asset]||'◉') + ' ' + a.asset + ' <span class="badge">' + a.timeframe + '</span>';
+        tab.onclick = () => { STATE.assetIdx = i; STATE.stratIdx = -1; buildUI(); };
+        tabsEl.appendChild(tab);
+    });
+    const asset = DATA.assets[STATE.assetIdx];
+    const stratEl = document.getElementById('strategy-tabs');
+    stratEl.innerHTML = '';
+    const ov = document.createElement('div');
+    ov.className = 'strategy-tab' + (STATE.stratIdx === -1 ? ' active' : '');
+    ov.textContent = '📊 Overview';
+    ov.onclick = () => { STATE.stratIdx = -1; renderContent(); };
+    stratEl.appendChild(ov);
+    asset.strategies.forEach((s, i) => {
+        const tab = document.createElement('div');
+        tab.className = 'strategy-tab' + (i === STATE.stratIdx ? ' active' : '');
+        tab.textContent = s.name;
+        tab.onclick = () => { STATE.stratIdx = i; renderContent(); };
+        stratEl.appendChild(tab);
+    });
+    renderContent();
+}
+
+function renderContent() {
+    document.querySelectorAll('.strategy-tab').forEach((el, i) => {
+        el.className = 'strategy-tab' + ((i-1) === STATE.stratIdx ? ' active' : '');
+    });
+    const allTabs = document.querySelectorAll('.strategy-tab');
+    if (allTabs.length) allTabs[0].className = 'strategy-tab' + (STATE.stratIdx === -1 ? ' active' : '');
+    destroyCharts();
+    if (STATE.stratIdx === -1) renderOverview(); else renderStrategy();
+}
+
+function renderOverview() {
+    const asset = DATA.assets[STATE.assetIdx];
+    const main = document.getElementById('main-content');
+    let h = '<div class="fade-in">';
+    h += '<h2 style="font-size:20px;font-weight:700;margin:20px 0 8px">' + asset.asset + ' — Strategy Comparison <span style="color:var(--text-muted);font-size:14px">(' + asset.timeframe + ')</span></h2>';
+    h += '<p style="color:var(--text-muted);margin-bottom:20px;font-size:13px">Phase A: ' + asset.phase_a.start + ' → ' + asset.phase_a.end + ' (' + asset.phase_a.n_bars + ' bars) | Phase B: ' + asset.phase_b.start + ' → ' + asset.phase_b.end + ' (' + asset.phase_b.n_bars + ' bars)</p>';
+    h += '<div class="comparison-grid">';
+    asset.strategies.forEach((strat, si) => {
+        const ma = strat.phase_a.metrics, mb = strat.phase_b.metrics;
+        const usfulA = ma.profit_factor > 1.0 && ma.total_return > 0;
+        const usfulB = mb.profit_factor > 1.0 && mb.total_return > 0;
+        const status = (usfulA && usfulB) ? 'pass' : ((usfulA || usfulB) ? 'partial' : 'fail');
+        const statusText = status === 'pass' ? '✅ PROFITABLE' : (status === 'partial' ? '⚠️ PARTIAL' : '❌ FAIL');
+        h += '<div class="comparison-card" onclick="STATE.stratIdx=' + si + ';renderContent()"><div class="strat-name">' + strat.name + '<span class="status-badge ' + status + '">' + statusText + '</span></div>';
+        h += '<div class="phase-row"><span class="phase-label">Phase A</span><span class="phase-val" style="color:' + (ma.total_return > 0 ? 'var(--green)' : 'var(--red)') + '">WR ' + ma.win_rate + '% · PF ' + ma.profit_factor + ' · ' + (ma.total_return > 0 ? '+' : '') + ma.total_return + '%</span></div>';
+        h += '<div class="phase-row"><span class="phase-label">Phase B</span><span class="phase-val" style="color:' + (mb.total_return > 0 ? 'var(--green)' : 'var(--red)') + '">WR ' + mb.win_rate + '% · PF ' + mb.profit_factor + ' · ' + (mb.total_return > 0 ? '+' : '') + mb.total_return + '%</span></div>';
+        h += '<div class="phase-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border-subtle)"><span class="phase-label">Trades</span><span class="phase-val" style="color:var(--text-secondary)">A:' + ma.n + ' · B:' + mb.n + '</span></div></div>';
+    });
+    h += '</div>';
+    h += '<div class="chart-card full-width" style="margin-top:24px"><div class="chart-title"><span class="dot green"></span> All Strategies — Equity Curves (Phase A)</div><div class="chart-canvas-wrap" style="height:320px"><canvas id="chart-ov-a"></canvas></div></div>';
+    h += '<div class="chart-card full-width" style="margin-top:16px"><div class="chart-title"><span class="dot purple"></span> All Strategies — Equity Curves (Phase B)</div><div class="chart-canvas-wrap" style="height:320px"><canvas id="chart-ov-b"></canvas></div></div>';
+    h += '</div>';
+    main.innerHTML = h;
+    const colors = ['#4f8bff','#10b981','#f472b6','#ff9f43','#8b5cf6','#06d6a0'];
+    setTimeout(() => {
+        ['a','b'].forEach(phase => {
+            const ctx = document.getElementById('chart-ov-' + phase);
+            if (!ctx) return;
+            const datasets = asset.strategies.map((s, i) => ({
+                label: s.name,
+                data: phase === 'a' ? s.phase_a.equity : s.phase_b.equity,
+                borderColor: colors[i % colors.length],
+                backgroundColor: 'transparent',
+                borderWidth: 2, pointRadius: 0, tension: 0.3,
+            }));
+            const maxLen = Math.max(...datasets.map(d => d.data.length));
+            CHARTS['ov-' + phase] = new Chart(ctx, {
+                type: 'line',
+                data: { labels: Array.from({length: maxLen}, (_, i) => i), datasets },
+                options: chartOpts('Equity ($)', true)
+            });
+        });
+    }, 100);
+}
+
+function renderStrategy() {
+    const asset = DATA.assets[STATE.assetIdx];
+    const strat = asset.strategies[STATE.stratIdx];
+    const main = document.getElementById('main-content');
+    let h = '<div class="fade-in">';
+    h += '<div class="phase-selector" style="margin-top:16px">';
+    h += '<div class="phase-btn ' + (STATE.phase==='a' ? 'active-a' : '') + '" onclick="STATE.phase=\'a\';renderStrategy()">🟢 Phase A — In-Sample (80%)</div>';
+    h += '<div class="phase-btn ' + (STATE.phase==='b' ? 'active-b' : '') + '" onclick="STATE.phase=\'b\';renderStrategy()">🟣 Phase B — Out-of-Sample (20%)</div>';
+    h += '<div class="phase-btn ' + (STATE.phase==='both' ? 'active-a' : '') + '" onclick="STATE.phase=\'both\';renderStrategy()">📊 Compare Both</div>';
+    h += '</div>';
+
+    if (STATE.phase === 'both') {
+        const ma = strat.phase_a.metrics, mb = strat.phase_b.metrics;
+        h += '<h3 style="font-size:18px;font-weight:700;margin-bottom:16px">' + strat.name + ' — A vs B Comparison</h3>';
+        h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">';
+        h += '<div class="chart-card"><div class="chart-title"><span class="dot green"></span> Phase A</div><div class="metrics-row" style="grid-template-columns:repeat(3,1fr)">' + mc('WR',ma.win_rate+'%',ma.win_rate>=50?'positive':'negative') + mc('PF',ma.profit_factor.toFixed(2),ma.profit_factor>=1.3?'positive':'negative') + mc('Return',(ma.total_return>0?'+':'')+ma.total_return+'%',ma.total_return>0?'positive':'negative') + '</div></div>';
+        h += '<div class="chart-card"><div class="chart-title"><span class="dot purple"></span> Phase B</div><div class="metrics-row" style="grid-template-columns:repeat(3,1fr)">' + mc('WR',mb.win_rate+'%',mb.win_rate>=50?'positive':'negative') + mc('PF',mb.profit_factor.toFixed(2),mb.profit_factor>=1.3?'positive':'negative') + mc('Return',(mb.total_return>0?'+':'')+mb.total_return+'%',mb.total_return>0?'positive':'negative') + '</div></div>';
+        h += '</div>';
+        h += '<div class="chart-card full-width"><div class="chart-title"><span class="dot blue"></span> Equity — A vs B</div><div class="chart-canvas-wrap" style="height:300px"><canvas id="chart-cmp"></canvas></div></div>';
+        h += '</div>';
+        main.innerHTML = h;
+        setTimeout(() => {
+            const ctx = document.getElementById('chart-cmp');
+            if (!ctx) return;
+            CHARTS.cmp = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: Math.max(strat.phase_a.equity.length, strat.phase_b.equity.length)}, (_, i) => i),
+                    datasets: [
+                        { label: 'Phase A', data: strat.phase_a.equity, borderColor: '#10b981', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                        { label: 'Phase B', data: strat.phase_b.equity, borderColor: '#8b5cf6', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 }
+                    ]
+                },
+                options: chartOpts('Equity ($)', true)
+            });
+        }, 100);
+        return;
+    }
+
+    const pk = STATE.phase === 'a' ? 'phase_a' : 'phase_b';
+    const pd = strat[pk], pi = asset[pk], m = pd.metrics;
+    h += '<h3 style="font-size:18px;font-weight:700;margin-bottom:4px">' + strat.name + ' <span style="color:var(--text-muted);font-size:13px">— ' + pi.label + '</span></h3>';
+    h += '<p style="color:var(--text-muted);margin-bottom:16px;font-size:12px">' + pi.start + ' → ' + pi.end + ' · ' + pi.n_bars + ' bars</p>';
+    h += '<div class="metrics-row">';
+    h += mc('Win Rate', m.win_rate+'%', m.win_rate>=50?'positive':'negative', m.wins+'W / '+m.losses+'L');
+    h += mc('Profit Factor', m.profit_factor.toFixed(2), m.profit_factor>=1.3?'positive':(m.profit_factor>=1.0?'gold':'negative'));
+    h += mc('Total Return', (m.total_return>0?'+':'')+m.total_return+'%', m.total_return>0?'positive':'negative');
+    h += mc('Max Drawdown', m.max_dd+'%', 'negative');
+    h += mc('Sharpe', m.sharpe.toFixed(2), m.sharpe>1?'positive':(m.sharpe>0?'gold':'negative'));
+    h += mc('Trades', m.n, 'neutral');
+    h += mc('Avg Win', (m.avg_win>0?'+':'')+m.avg_win+'%', 'positive');
+    h += mc('Avg Loss', m.avg_loss+'%', 'negative');
+    h += '</div>';
+    h += '<div class="charts-grid">';
+    h += '<div class="chart-card"><div class="chart-title"><span class="dot green"></span> Equity Curve</div><div class="chart-canvas-wrap"><canvas id="ch-eq"></canvas></div></div>';
+    h += '<div class="chart-card"><div class="chart-title"><span class="dot blue"></span> Trade PnL</div><div class="chart-canvas-wrap"><canvas id="ch-pnl"></canvas></div></div>';
+    h += '<div class="chart-card"><div class="chart-title"><span class="dot purple"></span> Exit Reasons</div><div class="chart-canvas-wrap"><canvas id="ch-rsn"></canvas></div></div>';
+    h += '<div class="chart-card"><div class="chart-title"><span class="dot green"></span> Cumulative PnL</div><div class="chart-canvas-wrap"><canvas id="ch-cum"></canvas></div></div>';
+    h += '</div>';
+    // Trade table
+    const trades = pd.trades;
+    if (trades && trades.length) {
+        h += '<div style="margin-top:24px"><div style="font-size:16px;font-weight:700;margin-bottom:12px">📋 Trade Log (' + trades.length + ' trades)</div>';
+        h += '<div class="trades-table-wrap"><div class="table-scroll"><table class="trades-table"><thead><tr><th>#</th><th>Type</th><th>Entry</th><th>Exit</th><th>Entry $</th><th>Exit $</th><th>PnL %</th><th>Reason</th></tr></thead><tbody>';
+        trades.forEach((t, i) => {
+            h += '<tr><td>' + (i+1) + '</td><td><span class="tag ' + t.type + '">' + t.type.toUpperCase() + '</span></td><td>' + t.entry_date + '</td><td>' + t.exit_date + '</td><td>$' + t.entry.toLocaleString() + '</td><td>$' + t.exit.toLocaleString() + '</td><td class="' + (t.win?'win':'loss') + '">' + (t.pnl>0?'+':'') + t.pnl + '%</td><td>' + t.reason + '</td></tr>';
+        });
+        h += '</tbody></table></div></div></div>';
+    }
+    h += '</div>';
+    main.innerHTML = h;
+    setTimeout(() => buildCharts(pd), 100);
+}
+
+function buildCharts(pd) {
+    const trades = pd.trades, equity = pd.equity;
+    const eqCtx = document.getElementById('ch-eq');
+    if (eqCtx && equity && equity.length) {
+        CHARTS.eq = new Chart(eqCtx, {
+            type: 'line',
+            data: {
+                labels: (pd.equity_dates||equity.map((_,i)=>i)).map(d => typeof d==='string'?d.substring(0,10):d),
+                datasets: [{ label:'Equity', data:equity, borderColor:'#10b981', backgroundColor:'rgba(16,185,129,0.08)', fill:true, borderWidth:2, pointRadius:equity.length<30?3:0, tension:0.3 }]
+            },
+            options: chartOpts('Equity ($)')
+        });
+    }
+    const pnlCtx = document.getElementById('ch-pnl');
+    if (pnlCtx && trades && trades.length) {
+        CHARTS.pnl = new Chart(pnlCtx, {
+            type: 'bar',
+            data: {
+                labels: trades.map((_,i)=>'#'+(i+1)),
+                datasets: [{ label:'PnL %', data:trades.map(t=>t.pnl), backgroundColor:trades.map(t=>t.win?'rgba(16,185,129,0.7)':'rgba(239,68,68,0.7)'), borderColor:trades.map(t=>t.win?'#10b981':'#ef4444'), borderWidth:1, borderRadius:4 }]
+            },
+            options: chartOpts('PnL %')
+        });
+    }
+    const rsnCtx = document.getElementById('ch-rsn');
+    if (rsnCtx && trades && trades.length) {
+        const reasons = {};
+        trades.forEach(t => { reasons[t.reason] = (reasons[t.reason]||0)+1; });
+        const rc = { 'TP':'#10b981','SL':'#ef4444','sig':'#4f8bff','end':'#8b90a5' };
+        CHARTS.rsn = new Chart(rsnCtx, {
+            type: 'doughnut',
+            data: { labels:Object.keys(reasons), datasets:[{ data:Object.values(reasons), backgroundColor:Object.keys(reasons).map(r=>rc[r]||'#5a5f76'), borderWidth:0 }] },
+            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ color:'#8b90a5', padding:12, font:{size:12} } } }, cutout:'60%' }
+        });
+    }
+    const cumCtx = document.getElementById('ch-cum');
+    if (cumCtx && trades && trades.length) {
+        let cum = 0;
+        const cumData = trades.map(t => { cum += t.pnl; return Math.round(cum*100)/100; });
+        CHARTS.cum = new Chart(cumCtx, {
+            type: 'line',
+            data: { labels:trades.map((_,i)=>'#'+(i+1)), datasets:[{ label:'Cum PnL %', data:cumData, borderColor:'#8b5cf6', backgroundColor:'rgba(139,92,246,0.08)', fill:true, borderWidth:2, pointRadius:trades.length<30?3:0, tension:0.3 }] },
+            options: chartOpts('Cumulative PnL %')
+        });
+    }
+}
+
+function chartOpts(yLabel, showLegend=false) {
+    return {
+        responsive:true, maintainAspectRatio:false,
+        plugins: {
+            legend: { display:showLegend, labels:{ color:'#8b90a5', font:{size:11, family:'Inter'} } },
+            tooltip: { backgroundColor:'#1e2230', titleColor:'#e8eaf0', bodyColor:'#8b90a5', borderColor:'#2a2e3d', borderWidth:1, cornerRadius:8, padding:10, bodyFont:{family:'JetBrains Mono',size:12} }
+        },
+        scales: {
+            x: { ticks:{color:'#5a5f76',font:{size:10},maxTicksLimit:8}, grid:{color:'#1e2230'} },
+            y: { ticks:{color:'#5a5f76',font:{size:10,family:'JetBrains Mono'}}, grid:{color:'#1e2230'}, title:{display:!!yLabel,text:yLabel,color:'#5a5f76',font:{size:11}} }
+        },
+        animation: { duration:600, easing:'easeOutCubic' }
+    };
+}
+
+function destroyCharts() { Object.values(CHARTS).forEach(c => { try{c.destroy();}catch(e){} }); CHARTS = {}; }
+
+function mc(label, value, cls, sub) {
+    return '<div class="metric-card"><div class="metric-label">' + label + '</div><div class="metric-value ' + (cls||'neutral') + '">' + value + '</div>' + (sub ? '<div class="metric-sub">' + sub + '</div>' : '') + '</div>';
+}
+
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+</body>
+</html>

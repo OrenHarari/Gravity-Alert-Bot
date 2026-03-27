@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETH/USD 4H Trend Pullback Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .tab-btn { transition: all 0.2s; border-bottom: 2px solid transparent; }
+        .tab-btn.active { border-bottom: 2px solid #3b82f6; color: #60a5fa; }
+        /* Glassmorphism */
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+    </style>
+</head>
+<body class="p-6 h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">
+                ETH/USD 4H Trading System
+            </h1>
+            <p class="text-sm text-slate-400 mt-1">Intraday Engine · Deep Pullbacks & Price Action Sweeps · 4H Candles</p>
+        </div>
+        <div class="flex space-x-4">
+            <div class="px-4 py-2 rounded-full glass text-sm font-semibold text-blue-300">
+                Phase A (80%): <span id="dates-a">...</span>
+            </div>
+            <div class="px-4 py-2 rounded-full glass text-sm font-semibold text-amber-300">
+                Phase B (20% OOS): <span id="dates-b">...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Strategy Banner -->
+    <div class="glass rounded-xl p-4 mb-6 border-l-4 border-blue-500 shadow-lg flex items-start gap-4">
+        <div class="text-3xl mt-1">🏦</div>
+        <div>
+            <h2 class="font-bold text-blue-400 text-lg">Intraday 4H Focus: Trend + Deep Pullbacks</h2>
+            <p class="text-sm text-slate-300">
+                Unlike 1D charts, Intraday Crypto (4H) is noisy. The strategy uses pure Trend Filters (EMA 200) combined with 
+                sharp Mean-Reversion triggers (buying the dip via RSI/Bollinger Bands) to capture sniper entries. Pure Price Action captures liquidity sweeps.
+            </p>
+        </div>
+    </div>
+
+    <!-- Main KPIs -->
+    <div class="grid grid-cols-4 gap-4 mb-6" id="kpis">
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-slate-400 text-xs tracking-widest font-bold mb-1 uppercase">Phase A Return</h3>
+            <p class="text-3xl font-bold text-emerald-400" id="kpi-ret">--</p>
+        </div>
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-slate-400 text-xs tracking-widest font-bold mb-1 uppercase">Profit Factor</h3>
+            <p class="text-3xl font-bold text-blue-400" id="kpi-pf">--</p>
+        </div>
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-slate-400 text-xs tracking-widest font-bold mb-1 uppercase">Win Rate</h3>
+            <p class="text-3xl font-bold text-amber-400" id="kpi-wr">--</p>
+        </div>
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-slate-400 text-xs tracking-widest font-bold mb-1 uppercase">Max Drawdown</h3>
+            <p class="text-3xl font-bold text-rose-400" id="kpi-mdd">--</p>
+        </div>
+    </div>
+
+    <!-- OOS KPIs -->
+    <div class="grid grid-cols-4 gap-4 mb-6" id="kpis-oos" style="opacity: 0.8">
+        <div class="glass rounded-xl p-4 border border-amber-500/30">
+            <h3 class="text-amber-500/70 text-xs tracking-widest font-bold mb-1 uppercase">Phase B (OOS) Ret</h3>
+            <p class="text-2xl font-bold text-emerald-400" id="oos-ret">--</p>
+        </div>
+        <div class="glass rounded-xl p-4 border border-amber-500/30">
+            <h3 class="text-amber-500/70 text-xs tracking-widest font-bold mb-1 uppercase">OOS PF</h3>
+            <p class="text-2xl font-bold text-blue-400" id="oos-pf">--</p>
+        </div>
+        <div class="glass rounded-xl p-4 border border-amber-500/30">
+            <h3 class="text-amber-500/70 text-xs tracking-widest font-bold mb-1 uppercase">OOS WR</h3>
+            <p class="text-2xl font-bold text-amber-400" id="oos-wr">--</p>
+        </div>
+        <div class="glass rounded-xl p-4 border border-amber-500/30">
+            <h3 class="text-amber-500/70 text-xs tracking-widest font-bold mb-1 uppercase">OOS Price Action PF</h3>
+            <p class="text-2xl font-bold text-purple-400" id="oos-pa-pf">--</p>
+        </div>
+    </div>
+
+
+    <!-- Content Area -->
+    <div class="flex-1 glass rounded-xl overflow-hidden flex flex-col p-4 relative">
+        <div class="w-full h-full relative">
+            <canvas id="mainChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Simple Table log -->
+    <div class="mt-6 glass rounded-xl p-4 overflow-auto max-h-64">
+        <h3 class="text-lg font-bold text-slate-200 mb-4 sticky top-0 bg-[#1e293b] p-2 rounded">Phase A Trade Log (Trend Pullback)</h3>
+        <table class="w-full text-sm text-left relative">
+            <thead class="text-xs text-slate-400 uppercase bg-slate-800">
+                <tr>
+                    <th class="px-4 py-2">Type</th>
+                    <th class="px-4 py-2">Entry Date</th>
+                    <th class="px-4 py-2">Exit Date</th>
+                    <th class="px-4 py-2 text-right">Entry $</th>
+                    <th class="px-4 py-2 text-right">Exit $</th>
+                    <th class="px-4 py-2 text-right">PnL %</th>
+                    <th class="px-4 py-2">Reason</th>
+                </tr>
+            </thead>
+            <tbody id="trade-log"></tbody>
+        </table>
+    </div>
+
+    <script>
+        async function load() {
+            const res = await fetch('backtest_4h_data.json');
+            const data = await res.json();
+            
+            const pa = data.phase_a;
+            const pb = data.phase_b;
+
+            // Fill Header Dates
+            document.getElementById('dates-a').innerText = `${pa.start} → ${pa.end}`;
+            document.getElementById('dates-b').innerText = `${pb.start} → ${pb.end}`;
+
+            const m = pa.strategy_trend.metrics;
+            document.getElementById('kpi-ret').innerText = `+${m.total_return}%`;
+            document.getElementById('kpi-pf').innerText = m.profit_factor;
+            document.getElementById('kpi-wr').innerText = `${m.win_rate}%`;
+            document.getElementById('kpi-mdd').innerText = `${m.max_dd}%`;
+
+            const mb = pb.strategy_trend.metrics;
+            document.getElementById('oos-ret').innerText = `${mb.total_return > 0 ? '+':''}${mb.total_return}%`;
+            document.getElementById('oos-pf').innerText = mb.profit_factor;
+            document.getElementById('oos-wr').innerText = `${mb.win_rate}%`;
+            
+            // Price action sweep is great in OOS
+            document.getElementById('oos-pa-pf').innerText = pb.strategy_pa.metrics.profit_factor + " (Pure PA)";
+
+            // Draw Chart (Phase A Equity)
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: pa.strategy_trend.equity_dates,
+                    datasets: [{
+                        label: 'Equity (Trend Pullback)',
+                        data: pa.strategy_trend.equity,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#10b981'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#f8fafc' } } },
+                    scales: {
+                        y: { 
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: { 
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', maxTicksLimit: 10 }
+                        }
+                    }
+                }
+            });
+
+            // Populate Table
+            const tb = document.getElementById('trade-log');
+            pa.strategy_trend.trades.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-slate-700/50 hover:bg-slate-800/50';
+                tr.innerHTML = `
+                    <td class="px-4 py-2 font-bold ${t.type==='long'?'text-emerald-400':'text-rose-400'}">${t.type.toUpperCase()}</td>
+                    <td class="px-4 py-2 text-slate-300">${t.entry_date}</td>
+                    <td class="px-4 py-2 text-slate-300">${t.exit_date}</td>
+                    <td class="px-4 py-2 text-right text-slate-300">${t.entry}</td>
+                    <td class="px-4 py-2 text-right text-slate-300">${t.exit}</td>
+                    <td class="px-4 py-2 text-right font-bold ${t.win?'text-emerald-400':'text-rose-400'}">${t.pnl}%</td>
+                    <td class="px-4 py-2 text-slate-400 text-xs">${t.reason}</td>
+                `;
+                tb.appendChild(tr);
+            });
+        }
+        load();
+    </script>
+</body>
+</html>

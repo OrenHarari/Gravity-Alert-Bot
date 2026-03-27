@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.csv
+*.json
+*.js
+*.webp
+.agents/
+.gemini/
+.idea/
+.vscode/

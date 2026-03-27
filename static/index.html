@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GRAVITY Live Signals</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0b0f;
+            --bg-card: rgba(24, 27, 39, 0.7);
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --glass-bg: rgba(30,34,50, 0.4);
+            --glass-border: rgba(255,255,255, 0.05);
+            --shadow: 0 8px 32px 0 rgba(0,0,0,0.5);
+            --blur: blur(12px);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg-primary); color: var(--text-main); min-height: 100vh; overflow-x: hidden;
+               background-image: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 25%),
+                                 radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15), transparent 25%); }
+        .nav { padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border);
+               background: rgba(10,11,15,0.8); backdrop-filter: var(--blur); position: sticky; top: 0; z-index: 50; }
+        .logo { font-size: 20px; font-weight: 800; display:flex; align-items: center; gap:12px;
+                background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;}
+        .status-badge { display:flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; padding: 6px 14px; 
+                        border-radius: 20px; background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2);}
+        .status-dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; box-shadow: 0 0 10px var(--accent-green); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 
+                           70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); } 
+                           100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 24px; }
+        .header-section { text-align: center; margin-bottom: 48px; }
+        .title { font-size: 36px; font-weight: 800; margin-bottom: 12px; }
+        .subtitle { color: var(--text-sub); font-size: 16px; }
+        .countdown { font-family: 'JetBrains Mono', monospace; font-size: 48px; font-weight: 700; color: var(--accent-blue);
+                     text-shadow: 0 0 20px rgba(59,130,246,0.3); margin-top: 24px; display:inline-block;
+                     background: var(--glass-bg); backdrop-filter: var(--blur); padding: 16px 32px; border-radius: 16px; border: 1px solid var(--glass-border); }
+        .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+        @media(max-width:900px){ .grid { grid-template-columns: 1fr; } }
+        .card { background: var(--glass-bg); backdrop-filter: var(--blur); border: 1px solid var(--glass-border);
+                border-radius: 20px; padding: 32px; box-shadow: var(--shadow); transition: transform 0.3s ease; }
+        .card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.1); }
+        .card-header { font-size: 18px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; }
+        .asset-ticker { font-size: 24px; font-weight: 800; font-family: 'JetBrains Mono'; }
+        .price { font-size: 32px; font-weight: 700; font-family: 'JetBrains Mono'; margin: 8px 0 24px; color: var(--text-main); }
+        .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .metric { background: rgba(0,0,0,0.3); padding: 16px; border-radius: 12px; border: 1px solid var(--glass-border); }
+        .m-label { font-size: 12px; color: var(--text-sub); text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+        .m-val { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono'; }
+        .m-val.up { color: var(--accent-green); }
+        .m-val.down { color: var(--accent-red); }
+        .m-val.neutral { color: var(--accent-blue); }
+        .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 3px; width: 0%; transition: width 1s ease; }
+        /* Log List */
+        .log-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+        .log-item { background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 12px; padding: 16px;
+                    display: flex; flex-direction: column; font-size: 13px; font-family: 'JetBrains Mono'; color: var(--text-sub); }
+        .log-time { color: var(--text-main); font-weight: 600; margin-bottom: 4px; }
+        .loading { text-align: center; padding: 40px; color: var(--text-sub); font-family: 'JetBrains Mono'; animation: blink 1.5s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <div class="logo">GRAVITY Live</div>
+        <div class="status-badge" id="conn-status"><div class="status-dot"></div><span id="conn-text">Connecting...</span></div>
+    </nav>
+    <div class="container">
+        <div class="header-section">
+            <div class="title">Next Technical Analysis Check</div>
+            <div class="subtitle">The engine fires precisely upon 4H candle close UTC</div>
+            <div class="countdown" id="countdown">00:00:00</div>
+        </div>
+        
+        <div class="grid">
+            <div class="card" id="asset-card">
+                <div class="loading">Fetching Engine Data...</div>
+            </div>
+            <div class="card">
+                <div class="card-header">Activity Log</div>
+                <ul class="log-list" id="activity-log">
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = "/api/state";
+        let targetDate = new Date();
+
+        function updateCountdown() {
+            const now = new Date();
+            const diff = targetDate - now;
+            if (diff <= 0) {
+                document.getElementById('countdown').innerText = "00:00:00";
+                return;
+            }
+            const h = Math.floor(diff / (1000 * 60 * 60)).toString().padStart(2, '0');
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+            const s = Math.floor((diff % (1000 * 60)) / 1000).toString().padStart(2, '0');
+            document.getElementById('countdown').innerText = `${h}:${m}:${s}`;
+        }
+        setInterval(updateCountdown, 1000);
+
+        async function fetchState() {
+            try {
+                const res = await fetch(API);
+                const data = await res.json();
+                
+                document.getElementById('conn-text').innerText = "Engine Active";
+                document.querySelector('.status-dot').style.background = "var(--accent-green)";
+                
+                if (data.next_candle) targetDate = new Date(data.next_candle);
+                
+                const eth = data.assets["ETH-USD"];
+                if (eth) {
+                    const longDist = (Math.abs(eth.price - eth.lower_bb) / eth.price * 100).toFixed(2);
+                    const shortDist = (Math.abs(eth.price - eth.upper_bb) / eth.price * 100).toFixed(2);
+                    
+                    document.getElementById('asset-card').innerHTML = `
+                        <div class="card-header"><span class="asset-ticker">ETH/USD</span> <span style="font-size:12px;color:var(--text-sub)">Live API Sync</span></div>
+                        <div class="price">$${eth.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+                        <div class="metrics-grid">
+                            <div class="metric">
+                                <div class="m-label">RSI (14)</div>
+                                <div class="m-val ${eth.rsi < 30 ? 'down' : (eth.rsi > 70 ? 'up' : 'neutral')}">${eth.rsi.toFixed(1)}</div>
+                                <div class="progress-bar"><div class="progress-fill" style="width: ${eth.rsi}%"></div></div>
+                            </div>
+                            <div class="metric">
+                                <div class="m-label">MACD Line</div>
+                                <div class="m-val ${eth.macd > 0 ? 'up' : 'down'}">${eth.macd.toFixed(2)}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="m-label">Trend Filter (EMA200)</div>
+                                <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                                    <div class="m-val">${eth.trend}</div>
+                                    <div style="font-size:12px; color:var(--text-sub)">$${eth.ema200.toFixed(2)}</div>
+                                </div>
+                            </div>
+                            <div class="metric">
+                                <div class="m-label">Proximity to Entry</div>
+                                <div class="m-val neutral" style="font-size: 16px;">
+                                    Long: ${longDist}% away<br>
+                                    Short: ${shortDist}% away
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Update Logs
+                const logEl = document.getElementById('activity-log');
+                if (data.recent_alerts && data.recent_alerts.length > 0) {
+                    logEl.innerHTML = data.recent_alerts.map(l => 
+                        `<li class="log-item"><span class="log-time">${l.time}</span>${l.msg}</li>`
+                    ).join('');
+                } else {
+                    logEl.innerHTML = `<li class="log-item" style="text-align:center">No alerts in this session</li>`;
+                }
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('conn-text').innerText = "Disconnected";
+                document.querySelector('.status-dot').style.background = "var(--accent-red)";
+            }
+        }
+
+        fetchState();
+        setInterval(fetchState, 10000); // Poll API every 10 seconds
+    </script>
+</body>
+</html>
