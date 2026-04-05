@@ -278,8 +278,8 @@ function renderOverview() {
         const status = (usfulA && usfulB) ? 'pass' : ((usfulA || usfulB) ? 'partial' : 'fail');
         const statusText = status === 'pass' ? '✅ PROFITABLE' : (status === 'partial' ? '⚠️ PARTIAL' : '❌ FAIL');
         h += '<div class="comparison-card" onclick="STATE.stratIdx=' + si + ';renderContent()"><div class="strat-name">' + strat.name + '<span class="status-badge ' + status + '">' + statusText + '</span></div>';
-        h += '<div class="phase-row"><span class="phase-label">Phase A</span><span class="phase-val" style="color:' + (ma.total_return > 0 ? 'var(--green)' : 'var(--red)') + '">WR ' + ma.win_rate + '% · PF ' + ma.profit_factor + ' · ' + (ma.total_return > 0 ? '+' : '') + ma.total_return + '%</span></div>';
-        h += '<div class="phase-row"><span class="phase-label">Phase B</span><span class="phase-val" style="color:' + (mb.total_return > 0 ? 'var(--green)' : 'var(--red)') + '">WR ' + mb.win_rate + '% · PF ' + mb.profit_factor + ' · ' + (mb.total_return > 0 ? '+' : '') + mb.total_return + '%</span></div>';
+        h += '<div class="phase-row"><span class="phase-label">Phase A</span><span class="phase-val" style="color:' + (ma.total_return > 0 ? 'var(--green)' : 'var(--red)') + '">WR ' + ma.win_rate + '% · PF ' + (ma.profit_factor > 9999 ? "MAX" : parseFloat(ma.profit_factor).toFixed(2)) + ' · ' + (ma.total_return > 0 ? '+' : '') + ma.total_return + '%</span></div>';
+        h += '<div class="phase-row"><span class="phase-label">Phase B</span><span class="phase-val" style="color:' + (mb.total_return > 0 ? 'var(--green)' : 'var(--red)') + '">WR ' + mb.win_rate + '% · PF ' + (mb.profit_factor > 9999 ? "MAX" : parseFloat(mb.profit_factor).toFixed(2)) + ' · ' + (mb.total_return > 0 ? '+' : '') + mb.total_return + '%</span></div>';
         h += '<div class="phase-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border-subtle)"><span class="phase-label">Trades</span><span class="phase-val" style="color:var(--text-secondary)">A:' + ma.n + ' · B:' + mb.n + '</span></div></div>';
     });
     h += '</div>';
@@ -324,8 +324,8 @@ function renderStrategy() {
         const ma = strat.phase_a.metrics, mb = strat.phase_b.metrics;
         h += '<h3 style="font-size:18px;font-weight:700;margin-bottom:16px">' + strat.name + ' — A vs B Comparison</h3>';
         h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">';
-        h += '<div class="chart-card"><div class="chart-title"><span class="dot green"></span> Phase A</div><div class="metrics-row" style="grid-template-columns:repeat(3,1fr)">' + mc('WR',ma.win_rate+'%',ma.win_rate>=50?'positive':'negative') + mc('PF',ma.profit_factor.toFixed(2),ma.profit_factor>=1.3?'positive':'negative') + mc('Return',(ma.total_return>0?'+':'')+ma.total_return+'%',ma.total_return>0?'positive':'negative') + '</div></div>';
-        h += '<div class="chart-card"><div class="chart-title"><span class="dot purple"></span> Phase B</div><div class="metrics-row" style="grid-template-columns:repeat(3,1fr)">' + mc('WR',mb.win_rate+'%',mb.win_rate>=50?'positive':'negative') + mc('PF',mb.profit_factor.toFixed(2),mb.profit_factor>=1.3?'positive':'negative') + mc('Return',(mb.total_return>0?'+':'')+mb.total_return+'%',mb.total_return>0?'positive':'negative') + '</div></div>';
+        h += '<div class="chart-card"><div class="chart-title"><span class="dot green"></span> Phase A</div><div class="metrics-row" style="grid-template-columns:repeat(3,1fr)">' + mc('WR',ma.win_rate+'%',ma.win_rate>=50?'positive':'negative') + mc('PF',(ma.profit_factor>9999?"MAX":ma.profit_factor.toFixed(2)),ma.profit_factor>=1.3?'positive':'negative') + mc('Return',(ma.total_return>0?'+':'')+ma.total_return+'%',ma.total_return>0?'positive':'negative') + '</div></div>';
+        h += '<div class="chart-card"><div class="chart-title"><span class="dot purple"></span> Phase B</div><div class="metrics-row" style="grid-template-columns:repeat(3,1fr)">' + mc('WR',mb.win_rate+'%',mb.win_rate>=50?'positive':'negative') + mc('PF',(mb.profit_factor>9999?"MAX":mb.profit_factor.toFixed(2)),mb.profit_factor>=1.3?'positive':'negative') + mc('Return',(mb.total_return>0?'+':'')+mb.total_return+'%',mb.total_return>0?'positive':'negative') + '</div></div>';
         h += '</div>';
         h += '<div class="chart-card full-width"><div class="chart-title"><span class="dot blue"></span> Equity — A vs B</div><div class="chart-canvas-wrap" style="height:300px"><canvas id="chart-cmp"></canvas></div></div>';
         h += '</div>';
@@ -354,7 +354,7 @@ function renderStrategy() {
     h += '<p style="color:var(--text-muted);margin-bottom:16px;font-size:12px">' + pi.start + ' → ' + pi.end + ' · ' + pi.n_bars + ' bars</p>';
     h += '<div class="metrics-row">';
     h += mc('Win Rate', m.win_rate+'%', m.win_rate>=50?'positive':'negative', m.wins+'W / '+m.losses+'L');
-    h += mc('Profit Factor', m.profit_factor.toFixed(2), m.profit_factor>=1.3?'positive':(m.profit_factor>=1.0?'gold':'negative'));
+    h += mc('Profit Factor', m.profit_factor>9999?"MAX":m.profit_factor.toFixed(2), m.profit_factor>=1.3?'positive':(m.profit_factor>=1.0?'gold':'negative'));
     h += mc('Total Return', (m.total_return>0?'+':'')+m.total_return+'%', m.total_return>0?'positive':'negative');
     h += mc('Max Drawdown', m.max_dd+'%', 'negative');
     h += mc('Sharpe', m.sharpe.toFixed(2), m.sharpe>1?'positive':(m.sharpe>0?'gold':'negative'));
