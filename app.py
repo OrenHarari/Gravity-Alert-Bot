@@ -2,17 +2,24 @@ import os
 import time
 import asyncio
 import traceback
+import sys
 from datetime import datetime, timedelta
 from threading import Thread
 import yfinance as yf
 import pandas as pd
 import numpy as np
 import requests
+from loguru import logger
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+# Configure logger
+logger.remove()
+logger.add(sys.stdout, colorize=True, format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>")
+logger.add("logs/gravity_system.log", rotation="10 MB", backtrace=True, diagnose=True)
 
 app = FastAPI(title="GRAVITY Trading Lab - Live System")
 
@@ -159,19 +166,19 @@ def update_market_data(symbol="ETH-USD"):
             
         return True
     except Exception as e:
-        print(f"Error updating market data: {e}")
-        traceback.print_exc()
+        logger.error(f"Error updating market data: {e}")
+        logger.exception(e)
         SYSTEM_STATE["status"] = f"Error: {str(e)}"
         return False
 
 # ─── BACKGROUND LOOP ─────────────────────────────────
 def background_worker():
-    print("Starting background Live Tracker...")
+    logger.info("Starting background Live Tracker...")
     while True:
         try:
             update_market_data()
-        except:
-            pass
+        except BaseException as e:
+            logger.error(f"Unexpected error in background worker: {e}")
         # Refresh Data every 60 seconds
         time.sleep(60)
 
@@ -181,6 +188,11 @@ Thread(target=background_worker, daemon=True).start()
 # ─── API ROUTES ──────────────────────────────────────
 @app.get("/")
 def serve_ui():
+    # If the user has J:\GRAVITY\Trading indications\dashboard.html mapped directly
+    # and we want to serve it:
+    dashboard_path = "dashboard.html"
+    if os.path.exists(dashboard_path):
+        return FileResponse(dashboard_path)
     return FileResponse("static/index.html")
 
 @app.get("/api/state")
