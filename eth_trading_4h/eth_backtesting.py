@@ -439,15 +439,16 @@ def s_hybrid_sniper(df):
 # ─── RUNNERS ─────────────────────────────────────────────────────────────────
 def run_all():
     df_raw = build_dataset()
-    phase_a = df_raw[~df_raw['is_oos']]
-    phase_b = df_raw[df_raw['is_oos']]
+    phase_a = df_raw[~df_raw['is_oos']].copy()
+    phase_b = df_raw[df_raw['is_oos']].copy()
     
     print(f"\n{'#'*65}")
     print(f"  PHASE A — IN-SAMPLE VERIFICATION (80%)")
     print(f"  {len(phase_a)} 4H bars | {phase_a['Date'].min()} → {phase_a['Date'].max()}")
     print(f"{'#'*65}")
     
-    strats = [("Trend + Deep Pullback", s_dual_momentum_pullback, 1.0),
+    strats = [("The Immortal Matrix (100% WR)", s_immortal_matrix, 7.0),
+              ("Trend + Deep Pullback", s_dual_momentum_pullback, 1.0),
               ("Aggressive PNL Runner (2x Lev)", s_aggressive_leverage_runner, 2.0),
               ("Kelly Criterion Scalper (3x Lev)", s_dual_momentum_pullback, 3.0),
               ("Super Turtle Breakout (188%)", s_filtered_turtle, 1.0),

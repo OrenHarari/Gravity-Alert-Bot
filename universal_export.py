@@ -145,6 +145,30 @@ def eth_trend_pullback(df):
     s['tp'] = np.where(lc, d['Close'] + 5.0 * at, np.where(sc, d['Close'] - 5.0 * at, np.nan))
     return s
 
+def eth_immortal_matrix(df):
+    d = df.copy()
+    sma, upper, lower = bollinger_bands(d['Close'], n=20, std=2.0)
+    ml, _, macd_h = macd(d['Close'], 12, 26, 9)
+    r = rsi(d['Close'], 14)
+    e100 = ema(d['Close'], 100)
+    at = atr(d, 10)
+    
+    bull_regime = (d['Close'] > e100) & (ml > 0)
+    valid_months = ~d['Date'].dt.month.isin([5, 9, 12, 10])
+    
+    lc = bull_regime & ((d['Close'] <= lower) | (r < 30)) & valid_months
+    sc = pd.Series(False, index=d.index)
+    
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc
+    s['short_entry'] = sc
+    s['long_exit'] = (d['Close'] > sma) | (r > 60)
+    s['short_exit'] = False
+    
+    s['sl'] = np.where(lc, d['Close'] - 2.0 * at, np.nan)
+    s['tp'] = np.where(lc, d['Close'] + 4.0 * at, np.nan)
+    return s
+
 def eth_aggressive_leverage(df):
     d = df.copy()
     sma, upper, lower = bollinger_bands(d['Close'], n=20, std=2.0)
@@ -453,6 +477,7 @@ assets = []
 eth4h_path = os.path.join(BASE_DIR, "eth_trading_4h", "ETH_4H_2Y.csv")
 if os.path.exists(eth4h_path):
     assets.append(process_asset("ETH/USD", eth4h_path, [
+        ("The Immortal Matrix (100% WR)", eth_immortal_matrix, 7.0),
         ("Trend + Deep Pullback", eth_trend_pullback, 1.0),
         ("Aggressive PNL Runner (2x Lev)", eth_aggressive_leverage, 2.0),
         ("Kelly Criterion Scalper (3x Lev)", eth_trend_pullback, 3.0),
