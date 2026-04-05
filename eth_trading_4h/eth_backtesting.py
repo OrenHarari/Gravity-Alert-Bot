@@ -42,13 +42,20 @@ def build_dataset():
         
     df = df[['Date','Open','High','Low','Close','Volume']]
     
-    # Calculate 80/20 split
-    split_idx = int(len(df) * 0.8)
-    df['is_oos'] = df.index >= split_idx
+    # Redefine phases based on explicit user request:
+    # Phase A (In Sample) = STRICTLY 2025 (2025-01-01 to 2025-12-31)
+    # Phase B (Out of Sample) = 2026 onwards
+    df = df[df['Date'].dt.year >= 2025].reset_index(drop=True)
+    df['is_oos'] = df['Date'].dt.year >= 2026
     
-    # The warmup phase for OOS needs prior 52 bars
+    # Calculate exactly where OOS begins
+    try:
+        split_idx = df[df['is_oos']].index[0]
+    except IndexError:
+        split_idx = len(df)
+    
     df['is_oos_actual'] = df['is_oos'].copy()
-    if split_idx > 52:
+    if split_idx > 52 and split_idx < len(df):
         df.loc[split_idx-52:split_idx-1, 'is_oos'] = True
         df.loc[split_idx-52:split_idx-1, 'is_warmup'] = True
     else:
@@ -56,9 +63,7 @@ def build_dataset():
         
     df['is_warmup'] = df.get('is_warmup', False).fillna(False)
     
-    return df
-
-# ─── INDICATORS ──────────────────────────────────────────────────────────────
+    return df# ─── INDICATORS ──────────────────────────────────────────────────────────────
 ema = lambda s,n: s.ewm(span=n,adjust=False).mean()
 def atr(df,n=14):
     h,l,c=df['High'],df['Low'],df['Close']; pc=c.shift(1)
@@ -439,15 +444,15 @@ def s_hybrid_sniper(df):
 # ─── RUNNERS ─────────────────────────────────────────────────────────────────
 def run_all():
     df_raw = build_dataset()
-    phase_a = df_raw[~df_raw['is_oos']].copy()
-    phase_b = df_raw[df_raw['is_oos']].copy()
+    df_train = df_raw[~df_raw['is_oos_actual']].copy() # Exact Phase A (2025 only)
+    df_test = df_raw[df_raw['is_oos_actual']].copy() # Phase B
     
     print(f"\n{'#'*65}")
-    print(f"  PHASE A — IN-SAMPLE VERIFICATION (80%)")
-    print(f"  {len(phase_a)} 4H bars | {phase_a['Date'].min()} → {phase_a['Date'].max()}")
+    print(f"  PHASE A — IN-SAMPLE (YEAR 2025 ONLY)")
+    print(f"  {len(df_train)} 4H bars | {df_train['Date'].min()} → {df_train['Date'].max()}")
     print(f"{'#'*65}")
     
-    strats = [("The Immortal Matrix (100% WR)", s_immortal_matrix, 7.0),
+    strats = [("The Immortal Matrix (100% WR)", s_immortal_matrix, 10.0),
               ("Trend + Deep Pullback", s_dual_momentum_pullback, 1.0),
               ("Aggressive PNL Runner (2x Lev)", s_aggressive_leverage_runner, 2.0),
               ("Kelly Criterion Scalper (3x Lev)", s_dual_momentum_pullback, 3.0),
@@ -459,16 +464,16 @@ def run_all():
               ("CREATIVE: Pure Price Action Sweeps", s_creative_price_action, 1.0)]
     
     for name,fn,lev in strats:
-        tr = Engine(phase_a, leverage=lev).run(fn(phase_a))
+        tr = Engine(df_train, leverage=lev).run(fn(df_train))
         rpt(tr, f"Phase A | {name}", show_trades=False)
 
     print(f"\n{'#'*65}")
-    print(f"  PHASE B — OUT-OF-SAMPLE TEST (20%)")
-    print(f"  {len(phase_b)} 4H bars | {phase_b['Date'].min()} → {phase_b['Date'].max()}")
+    print(f"  PHASE B — OUT-OF-SAMPLE TEST (2026)")
+    print(f"  {len(df_test)} 4H bars | {df_test['Date'].min()} → {df_test['Date'].max()}")
     print(f"{'#'*65}")
     
     for name,fn,lev in strats:
-        tr = Engine(phase_b, leverage=lev).run(fn(phase_b))
+        tr = Engine(df_test, leverage=lev).run(fn(df_test))
         rpt(tr, f"Phase B | {name}", show_trades=False)
 
 if __name__ == '__main__':
