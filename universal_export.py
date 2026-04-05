@@ -42,10 +42,11 @@ def stochastic(df, k_period=14, d_period=3):
 
 # ─── ENGINE ──────────────────────────────────────────────────────────────────
 class Engine:
-    def __init__(self,df):
+    def __init__(self,df, leverage=1.0):
         self.df=df.copy().reset_index(drop=True)
         self.wm=df.get('is_warmup', pd.Series(False,index=df.index)).values
         self.trades=[]; self._p=None
+        self.leverage = leverage
     def run(self,sig):
         df=self.df; sig=sig.reset_index(drop=True)
         for i in range(len(df)):
@@ -71,7 +72,7 @@ class Engine:
         return pd.DataFrame(self.trades)
     def _rec(self,ep,ed,r):
         p=self._p; e=p['entry']
-        pnl=((ep-e)/e if p['t']=='long' else (e-ep)/e)-2*COMMISSION
+        pnl=(((ep-e)/e if p['t']=='long' else (e-ep)/e)-2*COMMISSION) * self.leverage
         self.trades.append(dict(type=p['t'],
             entry_date=p['ed'].strftime('%Y-%m-%d %H:%M') if hasattr(p['ed'],'strftime') else str(p['ed']),
             exit_date=ed.strftime('%Y-%m-%d %H:%M') if hasattr(ed,'strftime') else str(ed),
@@ -141,6 +142,20 @@ def eth_trend_pullback(df):
     s['long_entry'] = lc; s['short_entry'] = sc
     s['long_exit'] = (d['Close'] > sma) | (r > 60); s['short_exit'] = (d['Close'] < sma) | (r < 40)
     s['sl'] = np.where(lc, d['Close'] - 1.5 * at, np.where(sc, d['Close'] + 1.5 * at, np.nan))
+    s['tp'] = np.where(lc, d['Close'] + 5.0 * at, np.where(sc, d['Close'] - 5.0 * at, np.nan))
+    return s
+
+def eth_aggressive_leverage(df):
+    d = df.copy()
+    sma, upper, lower = bollinger_bands(d['Close'], n=20, std=2.0)
+    ml, _, _ = macd(d['Close'], 12, 26, 9)
+    r = rsi(d['Close'], 14); e100 = ema(d['Close'], 100); at = atr(d, 10)
+    bull = (d['Close'] > e100) & (ml > 0); bear = (d['Close'] < e100) & (ml < 0)
+    lc = bull & ((d['Close'] <= lower) | (r < 30)); sc = bear & ((d['Close'] >= upper) | (r > 70))
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc; s['short_entry'] = sc
+    s['long_exit'] = r > 65; s['short_exit'] = r < 35
+    s['sl'] = np.where(lc, d['Close'] - 3.0 * at, np.where(sc, d['Close'] + 3.0 * at, np.nan))
     s['tp'] = np.where(lc, d['Close'] + 5.0 * at, np.where(sc, d['Close'] - 5.0 * at, np.nan))
     return s
 
@@ -314,19 +329,26 @@ def process_asset(asset_name, data_path, strategies, timeframe):
     candles_b = make_candles(phase_b)
     
     strat_results = []
-    for strat_name, strat_fn in strategies:
+    for strat_tuple in strategies:
+        # Check if strategy has leverage 
+        if len(strat_tuple) == 3:
+            strat_name, strat_fn, lev = strat_tuple
+        else:
+            strat_name, strat_fn = strat_tuple
+            lev = 1.0
+            
         print(f"    Running {strat_name}...")
         
         # Phase A
         sig_a = strat_fn(phase_a)
-        tr_a = Engine(phase_a).run(sig_a)
+        tr_a = Engine(phase_a, leverage=lev).run(sig_a)
         trades_a = tr_a.to_dict('records') if not tr_a.empty else []
         metrics_a = compute_metrics(trades_a)
         equity_a = calc_equity(trades_a)
         
         # Phase B
         sig_b = strat_fn(phase_b)
-        tr_b = Engine(phase_b).run(sig_b)
+        tr_b = Engine(phase_b, leverage=lev).run(sig_b)
         trades_b = tr_b.to_dict('records') if not tr_b.empty else []
         metrics_b = compute_metrics(trades_b)
         equity_b = calc_equity(trades_b)
@@ -375,10 +397,11 @@ assets = []
 eth4h_path = os.path.join(BASE_DIR, "eth_trading_4h", "ETH_4H_2Y.csv")
 if os.path.exists(eth4h_path):
     assets.append(process_asset("ETH/USD", eth4h_path, [
-        ("Trend + Deep Pullback", eth_trend_pullback),
-        ("Pure Price Action Sweeps", eth_price_action),
-        ("Volatility Squeeze", eth_volatility_squeeze),
-        ("MACD + RSI Combo", eth_macd_rsi_combo),
+        ("Trend + Deep Pullback", eth_trend_pullback, 1.0),
+        ("Aggressive PNL Runner (2x Lev)", eth_aggressive_leverage, 2.0),
+        ("Pure Price Action Sweeps", eth_price_action, 1.0),
+        ("Volatility Squeeze", eth_volatility_squeeze, 1.0),
+        ("MACD + RSI Combo", eth_macd_rsi_combo, 1.0),
     ], "4H"))
 
 # 2. BTC 4H

@@ -82,10 +82,11 @@ def bollinger_bands(s, n=20, std=2):
 
 # ─── ENGINE ──────────────────────────────────────────────────────────────────
 class Engine:
-    def __init__(self,df):
+    def __init__(self,df, leverage=1.0):
         self.df=df.copy().reset_index(drop=True)
         self.wm=df.get('is_warmup', pd.Series(False,index=df.index)).values
         self.trades=[]; self._p=None
+        self.leverage=leverage
     def run(self,sig):
         df=self.df; sig=sig.reset_index(drop=True)
         for i in range(len(df)):
@@ -114,7 +115,7 @@ class Engine:
     
     def _rec(self,ep,ed,r):
         p=self._p; e=p['entry']
-        pnl=((ep-e)/e if p['t']=='long' else (e-ep)/e)-2*COMMISSION
+        pnl=(((ep-e)/e if p['t']=='long' else (e-ep)/e)-2*COMMISSION) * self.leverage
         self.trades.append(dict(type=p['t'],entry_date=p['ed'],exit_date=ed,
                                 entry=e,exit=ep,pnl=pnl,reason=r,win=pnl>0))
 
@@ -329,6 +330,35 @@ def s_rsi_divergence_simple(df):
     s['tp'] = np.where(lc, d['Close'] + 3.0 * at, np.where(sc, d['Close'] - 3.0 * at, np.nan))
     return s
 
+def s_aggressive_leverage_runner(df):
+    """
+    4H Aggressive PNL Runner (Intended for 2x Leverage)
+    Optimized: EMA=100, RSI=30, SL=3.0x, TP=5.0x, HOLD=15
+    """
+    d = df.copy()
+    sma, upper, lower = bollinger_bands(d['Close'], n=20, std=2.0)
+    ml, _, _ = macd(d['Close'], 12, 26, 9)
+    r = rsi(d['Close'], 14)
+    e_trend = ema(d['Close'], 100)
+    at = atr(d, 10)
+    
+    bull_rc = (d['Close'] > e_trend) & (ml > 0)
+    bear_rc = (d['Close'] < e_trend) & (ml < 0)
+    
+    lc = bull_rc & ((d['Close'] <= lower) | (r < 30))
+    sc = bear_rc & ((d['Close'] >= upper) | (r > 70))
+    
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc
+    s['short_entry'] = sc
+    
+    s['long_exit'] = r > 65
+    s['short_exit'] = r < 35
+    
+    s['sl'] = np.where(lc, d['Close'] - 3.0 * at, np.where(sc, d['Close'] + 3.0 * at, np.nan))
+    s['tp'] = np.where(lc, d['Close'] + 5.0 * at, np.where(sc, d['Close'] - 5.0 * at, np.nan))
+    return s
+
 # ─── RUNNERS ─────────────────────────────────────────────────────────────────
 def run_all():
     df_raw = build_dataset()
@@ -340,13 +370,14 @@ def run_all():
     print(f"  {len(phase_a)} 4H bars | {phase_a['Date'].min()} → {phase_a['Date'].max()}")
     print(f"{'#'*65}")
     
-    strats = [("Trend + Deep Pullback", s_dual_momentum_pullback),
-              ("MACD + RSI Combo", s_macd_mean_revert_combo),
-              ("CREATIVE: Volatility Squeeze (Explosions)", s_creative_volatility_squeeze),
-              ("CREATIVE: Pure Price Action Sweeps", s_creative_price_action)]
+    strats = [("Trend + Deep Pullback", s_dual_momentum_pullback, 1.0),
+              ("Aggressive PNL Runner (2x Lev)", s_aggressive_leverage_runner, 2.0),
+              ("MACD + RSI Combo", s_macd_mean_revert_combo, 1.0),
+              ("CREATIVE: Volatility Squeeze (Explosions)", s_creative_volatility_squeeze, 1.0),
+              ("CREATIVE: Pure Price Action Sweeps", s_creative_price_action, 1.0)]
     
-    for name,fn in strats:
-        tr = Engine(phase_a).run(fn(phase_a))
+    for name,fn,lev in strats:
+        tr = Engine(phase_a, leverage=lev).run(fn(phase_a))
         rpt(tr, f"Phase A | {name}", show_trades=False)
 
     print(f"\n{'#'*65}")
@@ -354,8 +385,8 @@ def run_all():
     print(f"  {len(phase_b)} 4H bars | {phase_b['Date'].min()} → {phase_b['Date'].max()}")
     print(f"{'#'*65}")
     
-    for name,fn in strats:
-        tr = Engine(phase_b).run(fn(phase_b))
+    for name,fn,lev in strats:
+        tr = Engine(phase_b, leverage=lev).run(fn(phase_b))
         rpt(tr, f"Phase B | {name}", show_trades=False)
 
 if __name__ == '__main__':

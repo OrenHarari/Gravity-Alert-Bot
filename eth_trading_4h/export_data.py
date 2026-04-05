@@ -52,10 +52,11 @@ def macd(s,f=5,sl=13,sig=3):
 
 # ─── ENGINE ──────────────────────────────────────────────────────────────────
 class Engine:
-    def __init__(self,df):
+    def __init__(self,df, leverage=1.0):
         self.df=df.copy().reset_index(drop=True)
         self.wm=df.get('is_warmup', pd.Series(False,index=df.index)).values
         self.trades=[]; self._p=None
+        self.leverage=leverage
     def run(self,sig):
         df=self.df; sig=sig.reset_index(drop=True)
         for i in range(len(df)):
@@ -81,7 +82,7 @@ class Engine:
         return pd.DataFrame(self.trades)
     def _rec(self,ep,ed,r):
         p=self._p; e=p['entry']
-        pnl=((ep-e)/e if p['t']=='long' else (e-ep)/e)-2*COMMISSION
+        pnl=(((ep-e)/e if p['t']=='long' else (e-ep)/e)-2*COMMISSION) * self.leverage
         self.trades.append(dict(type=p['t'],entry_date=p['ed'].strftime('%Y-%m-%d %H:%M'),
                                 exit_date=ed.strftime('%Y-%m-%d %H:%M'),
                                 entry=round(e,2),exit=round(ep,2),sl=round(p['sl'],2),tp=round(p['tp'],2),
@@ -134,6 +135,25 @@ def s_creative_price_action(df):
     s['tp'] = np.where(lc, d['Close'] + 4.0 * at, np.where(sc, d['Close'] - 4.0 * at, np.nan))
     return s
 
+def s_aggressive_leverage_runner(df):
+    d = df.copy()
+    sma, upper, lower = bollinger_bands(d['Close'], n=20, std=2.0)
+    ml, _, _ = macd(d['Close'], 12, 26, 9)
+    r = rsi(d['Close'], 14)
+    e_trend = ema(d['Close'], 100)
+    at = atr(d, 10)
+    bull_rc = (d['Close'] > e_trend) & (ml > 0)
+    bear_rc = (d['Close'] < e_trend) & (ml < 0)
+    lc = bull_rc & ((d['Close'] <= lower) | (r < 30))
+    sc = bear_rc & ((d['Close'] >= upper) | (r > 70))
+    
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc; s['short_entry'] = sc
+    s['long_exit'] = r > 65; s['short_exit'] = r < 35
+    s['sl'] = np.where(lc, d['Close'] - 3.0 * at, np.where(sc, d['Close'] + 3.0 * at, np.nan))
+    s['tp'] = np.where(lc, d['Close'] + 5.0 * at, np.where(sc, d['Close'] - 5.0 * at, np.nan))
+    return s
+
 def compute_metrics(tr):
     if tr is None or len(tr)==0:
         return dict(n=0,wins=0,losses=0,win_rate=0,profit_factor=0,avg_win=0,avg_loss=0,total_return=0,max_dd=0,sharpe=0,expectancy=0)
@@ -165,13 +185,17 @@ phase_b = df[df['is_oos']].reset_index(drop=True)
 print("Running strategies...")
 sig_a_trend = s_dual_momentum_pullback(phase_a)
 sig_a_pa    = s_creative_price_action(phase_a)
+sig_a_lev   = s_aggressive_leverage_runner(phase_a)
 tr_a_trend  = Engine(phase_a).run(sig_a_trend)
 tr_a_pa     = Engine(phase_a).run(sig_a_pa)
+tr_a_lev    = Engine(phase_a, leverage=2.0).run(sig_a_lev)
 
 sig_b_trend = s_dual_momentum_pullback(phase_b)
 sig_b_pa    = s_creative_price_action(phase_b)
+sig_b_lev   = s_aggressive_leverage_runner(phase_b)
 tr_b_trend  = Engine(phase_b).run(sig_b_trend)
 tr_b_pa     = Engine(phase_b).run(sig_b_pa)
+tr_b_lev    = Engine(phase_b, leverage=2.0).run(sig_b_lev)
 
 candles_a = [dict(
     date=row.Date.strftime('%Y-%m-%d %H:%M'),
@@ -204,6 +228,13 @@ out = dict(
             equity=calc_equity(tr_a_pa),
             equity_dates=['Start'] + list(tr_a_pa['exit_date']) if not tr_a_pa.empty else ['Start'],
             metrics=compute_metrics(tr_a_pa)
+        ),
+        strategy_lev=dict(
+            name="Aggressive PNL Runner (2x Lev)",
+            trades=tr_a_lev.to_dict('records') if not tr_a_lev.empty else [],
+            equity=calc_equity(tr_a_lev),
+            equity_dates=['Start'] + list(tr_a_lev['exit_date']) if not tr_a_lev.empty else ['Start'],
+            metrics=compute_metrics(tr_a_lev)
         )
     ),
     phase_b=dict(
@@ -223,6 +254,13 @@ out = dict(
             equity=calc_equity(tr_b_pa),
             equity_dates=['Start'] + list(tr_b_pa['exit_date']) if not tr_b_pa.empty else ['Start'],
             metrics=compute_metrics(tr_b_pa)
+        ),
+        strategy_lev=dict(
+            name="Aggressive PNL Runner OOS (2x Lev)",
+            trades=tr_b_lev.to_dict('records') if not tr_b_lev.empty else [],
+            equity=calc_equity(tr_b_lev),
+            equity_dates=['Start'] + list(tr_b_lev['exit_date']) if not tr_b_lev.empty else ['Start'],
+            metrics=compute_metrics(tr_b_lev)
         )
     )
 )
