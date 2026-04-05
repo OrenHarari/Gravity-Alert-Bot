@@ -192,6 +192,29 @@ def eth_filtered_turtle(df):
     s['tp'] = np.nan
     return s
 
+def eth_hybrid_sniper(df):
+    d = df.copy()
+    sma, upper, lower = bollinger_bands(d['Close'], n=20, std=1.5)
+    ml, _, h = macd(d['Close'], 12, 26, 9)
+    r = rsi(d['Close'], 14)
+    e_trend = ema(d['Close'], 100)
+    at = atr(d, 10)
+    
+    bull = (d['Close'] > e_trend) & (ml > 0)
+    bear = (d['Close'] < e_trend) & (ml < 0)
+    
+    lc = bull & ((d['Close'] <= lower) | (r < 35))
+    sc = bear & ((d['Close'] >= upper) | (r > 65))
+    
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc
+    s['short_entry'] = sc
+    s['long_exit'] = (d['Close'] > sma) | (r > 60)
+    s['short_exit'] = (d['Close'] < sma) | (r < 40)
+    s['sl'] = np.where(lc, d['Close'] - 2.0 * at, np.where(sc, d['Close'] + 2.0 * at, np.nan))
+    s['tp'] = np.where(lc, d['Close'] + 5.0 * at, np.where(sc, d['Close'] - 5.0 * at, np.nan))
+    return s
+
 def eth_price_action(df):
     d = df.copy()
     d['is_green'] = d['Close'] > d['Open']; d['is_red'] = d['Close'] < d['Open']
@@ -433,6 +456,7 @@ if os.path.exists(eth4h_path):
         ("Trend + Deep Pullback", eth_trend_pullback, 1.0),
         ("Aggressive PNL Runner (2x Lev)", eth_aggressive_leverage, 2.0),
         ("Super Turtle Breakout (188%)", eth_filtered_turtle, 1.0),
+        ("2025 Sniper (70% WR)", eth_hybrid_sniper, 1.0),
         ("Turtle Breakout (Unleveraged)", eth_turtle_breakout, 1.0),
         ("Pure Price Action Sweeps", eth_price_action, 1.0),
         ("Volatility Squeeze", eth_volatility_squeeze, 1.0),

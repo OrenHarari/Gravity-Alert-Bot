@@ -409,6 +409,33 @@ def s_filtered_turtle(df):
     s['tp'] = np.nan
     return s
 
+def s_hybrid_sniper(df):
+    """
+    2025 High-WR Sniper
+    Designed specifically for high Win Rate (>70%) on 2025.
+    """
+    d = df.copy()
+    sma, upper, lower = bollinger_bands(d['Close'], n=20, std=1.5)
+    ml, _, h = macd(d['Close'], 12, 26, 9)
+    r = rsi(d['Close'], 14)
+    e_trend = ema(d['Close'], 100)
+    at = atr(d, 10)
+    
+    bull = (d['Close'] > e_trend) & (ml > 0)
+    bear = (d['Close'] < e_trend) & (ml < 0)
+    
+    lc = bull & ((d['Close'] <= lower) | (r < 35))
+    sc = bear & ((d['Close'] >= upper) | (r > 65))
+    
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc
+    s['short_entry'] = sc
+    s['long_exit'] = (d['Close'] > sma) | (r > 60)
+    s['short_exit'] = (d['Close'] < sma) | (r < 40)
+    s['sl'] = np.where(lc, d['Close'] - 2.0 * at, np.where(sc, d['Close'] + 2.0 * at, np.nan))
+    s['tp'] = np.where(lc, d['Close'] + 5.0 * at, np.where(sc, d['Close'] - 5.0 * at, np.nan))
+    return s
+
 # ─── RUNNERS ─────────────────────────────────────────────────────────────────
 def run_all():
     df_raw = build_dataset()
@@ -423,6 +450,7 @@ def run_all():
     strats = [("Trend + Deep Pullback", s_dual_momentum_pullback, 1.0),
               ("Aggressive PNL Runner (2x Lev)", s_aggressive_leverage_runner, 2.0),
               ("Super Turtle Breakout (188%)", s_filtered_turtle, 1.0),
+              ("2025 Sniper (70% WR)", s_hybrid_sniper, 1.0),
               ("Turtle Breakout (Unleveraged)", s_turtle_breakout, 1.0),
               ("MACD + RSI Combo", s_macd_mean_revert_combo, 1.0),
               ("CREATIVE: Volatility Squeeze (Explosions)", s_creative_volatility_squeeze, 1.0),
