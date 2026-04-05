@@ -92,13 +92,6 @@ def load_csv(filepath):
     df = df.sort_values('Date').reset_index(drop=True)
     if 'Volume' not in df.columns: df['Volume'] = 1.0
     df = df[['Date','Open','High','Low','Close','Volume']]
-    split_idx = int(len(df) * 0.8)
-    df['is_oos'] = df.index >= split_idx
-    if split_idx > 52:
-        df.loc[split_idx-52:split_idx-1, 'is_oos'] = True
-        df.loc[split_idx-52:split_idx-1, 'is_warmup'] = True
-    else: df['is_warmup'] = False
-    df['is_warmup'] = df.get('is_warmup', False).fillna(False)
     return df
 
 # ─── METRICS ─────────────────────────────────────────────────────────────────
@@ -360,39 +353,20 @@ def btc_triple_confirmation(df):
     return s
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ETH 1D STRATEGIES (from the daily system)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def eth1d_trend_following(df):
-    """ETH 1D Trend Following: FastMACD + Dual EMA confirmation."""
-    d = df.copy()
-    ml, sg, h = macd(d['Close'], 5, 13, 3)
-    e20 = ema(d['Close'], 20); e50 = ema(d['Close'], 50)
-    r = rsi(d['Close'], 14); at = atr(d, 14)
-    lc = (h>0)&(h.shift(1)<=0)&(e20>e50)&(r>40)&(r<70)
-    sc = (h<0)&(h.shift(1)>=0)&(e20<e50)&(r>30)&(r<60)
-    s = pd.DataFrame(index=d.index)
-    s['long_entry']=lc; s['short_entry']=sc
-    s['long_exit']=(h<0)|(r>80); s['short_exit']=(h>0)|(r<20)
-    s['sl']=np.where(lc,d['Close']-2.0*at,np.where(sc,d['Close']+2.0*at,np.nan))
-    s['tp']=np.where(lc,d['Close']+5.0*at,np.where(sc,d['Close']-5.0*at,np.nan))
-    return s
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN EXPORT
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def process_asset(asset_name, data_path, strategies, timeframe):
-    """Process one asset: load data, run all strategies, return results."""
-    print(f"\n  Processing {asset_name} ({timeframe})...")
-    df = load_csv(data_path)
-    phase_a = df[~df['is_oos']].reset_index(drop=True)
-    phase_b = df[df['is_oos']].reset_index(drop=True)
+def process_asset(label, csv_path, strats_conf):
+    print(f"\n  Processing {label}...")
+    df = load_csv(csv_path)
     
-    print(f"    Phase A: {len(phase_a)} bars ({phase_a['Date'].min()} → {phase_a['Date'].max()})")
-    print(f"    Phase B: {len(phase_b)} bars ({phase_b['Date'].min()} → {phase_b['Date'].max()})")
+    # Strict 2025 filtering for Phase A based on user request
+    phase_a = df[df['Date'].dt.year == 2025].reset_index(drop=True)
+    phase_b = df[df['Date'].dt.year == 2026].reset_index(drop=True)
     
-    # Build candles for chart (downsample if >500 candles for performance)
+    print(f"    Phase A: {len(phase_a)} bars (Year 2025)")
+    print(f"    Phase B: {len(phase_b)} bars (Year 2026)")
+    
     def make_candles(phase_df, max_candles=500):
         step = max(1, len(phase_df) // max_candles)
         candles = []
@@ -409,26 +383,21 @@ def process_asset(asset_name, data_path, strategies, timeframe):
     candles_b = make_candles(phase_b)
     
     strat_results = []
-    for strat_tuple in strategies:
-        # Check if strategy has leverage 
+    for strat_tuple in strats_conf:
         if len(strat_tuple) == 3:
-            strat_name, strat_fn, lev = strat_tuple
+            name, fn, lev = strat_tuple
         else:
-            strat_name, strat_fn = strat_tuple
+            name, fn = strat_tuple
             lev = 1.0
             
-        print(f"    Running {strat_name}...")
+        print(f"    Running {name}...")
         
-        # Phase A
-        sig_a = strat_fn(phase_a)
-        tr_a = Engine(phase_a, leverage=lev).run(sig_a)
+        tr_a = Engine(phase_a, leverage=lev).run(fn(phase_a))
         trades_a = tr_a.to_dict('records') if not tr_a.empty else []
         metrics_a = compute_metrics(trades_a)
         equity_a = calc_equity(trades_a)
         
-        # Phase B
-        sig_b = strat_fn(phase_b)
-        tr_b = Engine(phase_b, leverage=lev).run(sig_b)
+        tr_b = Engine(phase_b, leverage=lev).run(fn(phase_b))
         trades_b = tr_b.to_dict('records') if not tr_b.empty else []
         metrics_b = compute_metrics(trades_b)
         equity_b = calc_equity(trades_b)
@@ -437,7 +406,7 @@ def process_asset(asset_name, data_path, strategies, timeframe):
         print(f"      B: N={metrics_b['n']} WR={metrics_b['win_rate']}% PF={metrics_b['profit_factor']} Ret={metrics_b['total_return']}%")
         
         strat_results.append(dict(
-            name=strat_name,
+            name=name,
             phase_a=dict(trades=trades_a, equity=equity_a, 
                         equity_dates=['Start']+[t['exit_date'] for t in trades_a],
                         metrics=metrics_a),
@@ -447,17 +416,17 @@ def process_asset(asset_name, data_path, strategies, timeframe):
         ))
     
     return dict(
-        asset=asset_name,
-        timeframe=timeframe,
+        asset=label,
+        timeframe='4H',
         phase_a=dict(
-            label=f"Phase A — In-Sample (80%)",
+            label=f"Phase A — In-Sample (2025)",
             start=phase_a['Date'].min().strftime('%Y-%m-%d'),
             end=phase_a['Date'].max().strftime('%Y-%m-%d'),
             n_bars=len(phase_a),
             candles=candles_a
         ),
         phase_b=dict(
-            label=f"Phase B — Out-of-Sample (20%)",
+            label=f"Phase B — Out-of-Sample (2026)",
             start=phase_b['Date'].min().strftime('%Y-%m-%d'),
             end=phase_b['Date'].max().strftime('%Y-%m-%d'),
             n_bars=len(phase_b),
