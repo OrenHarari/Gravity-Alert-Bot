@@ -449,6 +449,7 @@ def run_all():
     
     strats = [("Trend + Deep Pullback", s_dual_momentum_pullback, 1.0),
               ("Aggressive PNL Runner (2x Lev)", s_aggressive_leverage_runner, 2.0),
+              ("Kelly Criterion Scalper (3x Lev)", s_dual_momentum_pullback, 3.0),
               ("Super Turtle Breakout (188%)", s_filtered_turtle, 1.0),
               ("2025 Sniper (70% WR)", s_hybrid_sniper, 1.0),
               ("Turtle Breakout (Unleveraged)", s_turtle_breakout, 1.0),

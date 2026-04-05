@@ -455,6 +455,7 @@ if os.path.exists(eth4h_path):
     assets.append(process_asset("ETH/USD", eth4h_path, [
         ("Trend + Deep Pullback", eth_trend_pullback, 1.0),
         ("Aggressive PNL Runner (2x Lev)", eth_aggressive_leverage, 2.0),
+        ("Kelly Criterion Scalper (3x Lev)", eth_trend_pullback, 3.0),
         ("Super Turtle Breakout (188%)", eth_filtered_turtle, 1.0),
         ("2025 Sniper (70% WR)", eth_hybrid_sniper, 1.0),
         ("Turtle Breakout (Unleveraged)", eth_turtle_breakout, 1.0),
