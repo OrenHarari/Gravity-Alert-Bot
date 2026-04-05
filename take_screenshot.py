@@ -16,7 +16,7 @@ with sync_playwright() as p:
     
     try:
         # Click on the Aggressive PNL Runner tab to show it in the screenshot
-        page.click("text='Aggressive PNL Runner (2x Lev)'")
+        page.click("text='Super Turtle Breakout (188%)'")
         page.wait_for_timeout(1000)
     except:
         pass

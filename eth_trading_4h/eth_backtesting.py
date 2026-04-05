@@ -383,6 +383,32 @@ def s_turtle_breakout(df):
     s['tp'] = np.nan
     return s
 
+def s_filtered_turtle(df):
+    """
+    Super Turtle Breakout
+    Unleveraged 188%+ PNL strategy out of the box.
+    """
+    d = df.copy()
+    high_max = d['High'].shift(1).rolling(35).max()
+    low_min = d['Low'].shift(1).rolling(35).min()
+    exit_high = d['High'].shift(1).rolling(3).max()
+    exit_low = d['Low'].shift(1).rolling(3).min()
+    
+    e_trend = ema(d['Close'], 100)
+    at = atr(d, 20)
+    
+    lc = (d['Close'] > high_max) & (d['Close'] > e_trend)
+    sc = (d['Close'] < low_min) & (d['Close'] < e_trend)
+    
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc
+    s['short_entry'] = sc
+    s['long_exit'] = d['Close'] < exit_low
+    s['short_exit'] = d['Close'] > exit_high
+    s['sl'] = np.where(lc, d['Close'] - 1.5 * at, np.where(sc, d['Close'] + 1.5 * at, np.nan))
+    s['tp'] = np.nan
+    return s
+
 # ─── RUNNERS ─────────────────────────────────────────────────────────────────
 def run_all():
     df_raw = build_dataset()
@@ -396,6 +422,7 @@ def run_all():
     
     strats = [("Trend + Deep Pullback", s_dual_momentum_pullback, 1.0),
               ("Aggressive PNL Runner (2x Lev)", s_aggressive_leverage_runner, 2.0),
+              ("Super Turtle Breakout (188%)", s_filtered_turtle, 1.0),
               ("Turtle Breakout (Unleveraged)", s_turtle_breakout, 1.0),
               ("MACD + RSI Combo", s_macd_mean_revert_combo, 1.0),
               ("CREATIVE: Volatility Squeeze (Explosions)", s_creative_volatility_squeeze, 1.0),

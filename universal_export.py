@@ -175,6 +175,23 @@ def eth_turtle_breakout(df):
     s['tp'] = np.nan
     return s
 
+def eth_filtered_turtle(df):
+    d = df.copy()
+    high_max = d['High'].shift(1).rolling(35).max()
+    low_min = d['Low'].shift(1).rolling(35).min()
+    exit_high = d['High'].shift(1).rolling(3).max()
+    exit_low = d['Low'].shift(1).rolling(3).min()
+    e_trend = ema(d['Close'], 100)
+    at = atr(d, 20)
+    lc = (d['Close'] > high_max) & (d['Close'] > e_trend)
+    sc = (d['Close'] < low_min) & (d['Close'] < e_trend)
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc; s['short_entry'] = sc
+    s['long_exit'] = d['Close'] < exit_low; s['short_exit'] = d['Close'] > exit_high
+    s['sl'] = np.where(lc, d['Close'] - 1.5 * at, np.where(sc, d['Close'] + 1.5 * at, np.nan))
+    s['tp'] = np.nan
+    return s
+
 def eth_price_action(df):
     d = df.copy()
     d['is_green'] = d['Close'] > d['Open']; d['is_red'] = d['Close'] < d['Open']
@@ -415,6 +432,7 @@ if os.path.exists(eth4h_path):
     assets.append(process_asset("ETH/USD", eth4h_path, [
         ("Trend + Deep Pullback", eth_trend_pullback, 1.0),
         ("Aggressive PNL Runner (2x Lev)", eth_aggressive_leverage, 2.0),
+        ("Super Turtle Breakout (188%)", eth_filtered_turtle, 1.0),
         ("Turtle Breakout (Unleveraged)", eth_turtle_breakout, 1.0),
         ("Pure Price Action Sweeps", eth_price_action, 1.0),
         ("Volatility Squeeze", eth_volatility_squeeze, 1.0),
