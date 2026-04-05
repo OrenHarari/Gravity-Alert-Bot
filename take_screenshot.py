@@ -14,11 +14,9 @@ with sync_playwright() as p:
     # Wait for the page to render fully
     page.wait_for_timeout(2000)
     
-    # Click to show strategy overview or a specific strategy that has > 80% winrate
     try:
-        # We know Trend + Deep Pullback has > 80% 
-        # Click on the strategy tab
-        page.click("text='Trend + Deep Pullback'")
+        # Click on the Aggressive PNL Runner tab to show it in the screenshot
+        page.click("text='Aggressive PNL Runner (2x Lev)'")
         page.wait_for_timeout(1000)
     except:
         pass

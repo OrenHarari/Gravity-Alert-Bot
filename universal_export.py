@@ -159,6 +159,22 @@ def eth_aggressive_leverage(df):
     s['tp'] = np.where(lc, d['Close'] + 5.0 * at, np.where(sc, d['Close'] - 5.0 * at, np.nan))
     return s
 
+def eth_turtle_breakout(df):
+    d = df.copy()
+    high_max = d['High'].shift(1).rolling(40).max()
+    low_min = d['Low'].shift(1).rolling(40).min()
+    exit_high = d['High'].shift(1).rolling(10).max()
+    exit_low = d['Low'].shift(1).rolling(10).min()
+    at = atr(d, 20)
+    lc = d['Close'] > high_max
+    sc = d['Close'] < low_min
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc; s['short_entry'] = sc
+    s['long_exit'] = d['Close'] < exit_low; s['short_exit'] = d['Close'] > exit_high
+    s['sl'] = np.where(lc, d['Close'] - 2.0 * at, np.where(sc, d['Close'] + 2.0 * at, np.nan))
+    s['tp'] = np.nan
+    return s
+
 def eth_price_action(df):
     d = df.copy()
     d['is_green'] = d['Close'] > d['Open']; d['is_red'] = d['Close'] < d['Open']
@@ -399,6 +415,7 @@ if os.path.exists(eth4h_path):
     assets.append(process_asset("ETH/USD", eth4h_path, [
         ("Trend + Deep Pullback", eth_trend_pullback, 1.0),
         ("Aggressive PNL Runner (2x Lev)", eth_aggressive_leverage, 2.0),
+        ("Turtle Breakout (Unleveraged)", eth_turtle_breakout, 1.0),
         ("Pure Price Action Sweeps", eth_price_action, 1.0),
         ("Volatility Squeeze", eth_volatility_squeeze, 1.0),
         ("MACD + RSI Combo", eth_macd_rsi_combo, 1.0),
@@ -429,5 +446,13 @@ out = dict(
 out_path = os.path.join(BASE_DIR, "unified_dashboard_data.json")
 with open(out_path, 'w') as f:
     json.dump(out, f, indent=2, default=str)
-print(f"\n✅ Exported to {out_path}")
+
+# Also write to dashboard_data_inline.js to bypass file:// CORS in browser
+js_path = os.path.join(BASE_DIR, "dashboard_data_inline.js")
+with open(js_path, 'w', encoding='utf-8') as f:
+    f.write("const INLINE_DATA = ")
+    json.dump(out, f, indent=2, default=str)
+    f.write(";")
+
+print(f"\n✅ Exported to {out_path} and {js_path}")
 print(f"   {len(assets)} assets processed")

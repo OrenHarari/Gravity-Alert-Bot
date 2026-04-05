@@ -359,6 +359,30 @@ def s_aggressive_leverage_runner(df):
     s['tp'] = np.where(lc, d['Close'] + 5.0 * at, np.where(sc, d['Close'] - 5.0 * at, np.nan))
     return s
 
+def s_turtle_breakout(df):
+    """
+    Turtle Trading / Donchian Breakout
+    Unleveraged 100%+ PNL strategy.
+    """
+    d = df.copy()
+    high_max = d['High'].shift(1).rolling(40).max()
+    low_min = d['Low'].shift(1).rolling(40).min()
+    exit_high = d['High'].shift(1).rolling(10).max()
+    exit_low = d['Low'].shift(1).rolling(10).min()
+    at = atr(d, 20)
+    
+    lc = d['Close'] > high_max
+    sc = d['Close'] < low_min
+    
+    s = pd.DataFrame(index=d.index)
+    s['long_entry'] = lc
+    s['short_entry'] = sc
+    s['long_exit'] = d['Close'] < exit_low
+    s['short_exit'] = d['Close'] > exit_high
+    s['sl'] = np.where(lc, d['Close'] - 2.0 * at, np.where(sc, d['Close'] + 2.0 * at, np.nan))
+    s['tp'] = np.nan
+    return s
+
 # ─── RUNNERS ─────────────────────────────────────────────────────────────────
 def run_all():
     df_raw = build_dataset()
@@ -372,6 +396,7 @@ def run_all():
     
     strats = [("Trend + Deep Pullback", s_dual_momentum_pullback, 1.0),
               ("Aggressive PNL Runner (2x Lev)", s_aggressive_leverage_runner, 2.0),
+              ("Turtle Breakout (Unleveraged)", s_turtle_breakout, 1.0),
               ("MACD + RSI Combo", s_macd_mean_revert_combo, 1.0),
               ("CREATIVE: Volatility Squeeze (Explosions)", s_creative_volatility_squeeze, 1.0),
               ("CREATIVE: Pure Price Action Sweeps", s_creative_price_action, 1.0)]
