@@ -456,7 +456,7 @@ if os.path.exists(eth4h_path):
         ("Pure Price Action Sweeps", eth_price_action, 1.0),
         ("Volatility Squeeze", eth_volatility_squeeze, 1.0),
         ("MACD + RSI Combo", eth_macd_rsi_combo, 1.0),
-    ], "4H"))
+    ]))
 
 # 2. BTC 4H
 btc4h_path = os.path.join(BASE_DIR, "btc_trading_4h", "BTC_4H_2Y.csv")
@@ -466,7 +466,7 @@ if os.path.exists(btc4h_path):
         ("Adaptive Momentum", btc_adaptive_momentum),
         ("Golden Cross Sniper", btc_golden_sniper),
         ("Triple Confirmation", btc_triple_confirmation),
-    ], "4H"))
+    ]))
 
 # 3. ETH 1D — skipped (uses investing.com weekly format, different columns)
 # Will add when we download proper daily data from yfinance
